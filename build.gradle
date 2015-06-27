@@ -33,7 +33,8 @@ dependencies{
 }
 
 task run(type: JavaExec, dependsOn: classes) {
-    main = 'io.rob.Main'
+    main = 'akka.Main'
+    args = ['io.rob.Main']
     classpath sourceSets.main.runtimeClasspath
     classpath configurations.runtime
 }

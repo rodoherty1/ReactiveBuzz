@@ -1,6 +1,7 @@
 package io.rob
 
-import akka.actor.ActorSystem
+import akka.actor.Actor.Receive
+import akka.actor.{Actor, ActorSystem}
 import akka.event.Logging
 import akka.io.IO
 import akka.pattern.ask
@@ -13,7 +14,7 @@ import spray.util._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object Main extends App {
+class Main extends Actor {
 
   case class GitProject(name: String)
   case class GitResult(total_count: Int, incomplete_results: Boolean, items: List[GitProject])
@@ -60,9 +61,9 @@ object Main extends App {
     system.shutdown()
   }
 
-
-
-
+  override def receive: Receive = {
+    case _ => ()
+  }
 
 }
 
