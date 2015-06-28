@@ -1,12 +1,16 @@
 package io.rob
 
 import akka.actor.Actor
-import akka.actor.Actor.Receive
+import io.rob.TwitterClient.GetTweets
 
 
-/**
- * Created on 27/06/15.
- */
+object TwitterClient {
+  case class GetTweets(hashtag: String)
+}
+
 class TwitterClient extends Actor {
-  override def receive: Receive = ???
+
+  override def receive: Receive = {
+    case GetTweets(hashtag) => ???
+  }
 }

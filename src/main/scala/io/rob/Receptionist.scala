@@ -1,11 +1,18 @@
 package io.rob
 
-import akka.actor.Actor
-import akka.actor.Actor.Receive
+import akka.actor.{Props, Actor}
 
-/**
- * Created on 27/06/15.
- */
+
+object Receptionist {
+  case object FetchReactiveBuzz
+  case object DummyResult
+}
+
 class Receptionist extends Actor {
-  override def receive: Receive = ???
+
+  val controller = context.actorOf(Props[Controller], "Controller")
+
+  override def receive: Receive = {
+    case Main.FetchReactiveBuzz => controller ! Receptionist.FetchReactiveBuzz
+  }
 }
