@@ -44,8 +44,8 @@ class GitClient extends Actor with ActorLogging {
     case Controller.GetReactiveProjects => log.info("Ignoring subsequent requests for #Reactive projects")
 
     case results@ReactiveProjects => controller ! results; context.unbecome()
-    case noResults@UnableToGetReactiveProjects => noResults; context.unbecome()
-    case error@ErrorRetrievingReactiveProjects => error; context.unbecome()
+    case noResults@UnableToGetReactiveProjects => controller ! noResults; context.unbecome()
+    case error@ErrorRetrievingReactiveProjects => controller ! error; context.unbecome()
   }
 
 

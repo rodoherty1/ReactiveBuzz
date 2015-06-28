@@ -1,6 +1,9 @@
+plugins {
+    id "com.github.maiflai.scalatest" version "0.7"
+}
+
 apply plugin: 'scala'
 apply plugin: 'idea'
-
 
 ext {
     scalaVersion = '2.11.6'
@@ -15,11 +18,6 @@ repositories{
     mavenCentral()
 }
 
-sourceSets {
-    test.scala.srcDirs = ["src/test/scala", "src/test/java"]
-    test.java.srcDirs = []
-}
-
 dependencies{
     compile "org.scala-lang:scala-library:2.11.6"
     compile "org.scala-lang:scala-compiler:2.11.6"
@@ -30,6 +28,9 @@ dependencies{
 
     testCompile 'org.scalatest:scalatest_2.11:2.2.5'
     testCompile 'org.scalacheck:scalacheck_2.11:1.12.4'
+    testCompile 'com.typesafe.akka:akka-testkit_2.11:2.3.11'
+
+    testRuntime 'org.pegdown:pegdown:1.1.0'
 }
 
 task run(type: JavaExec, dependsOn: classes) {
@@ -37,4 +38,13 @@ task run(type: JavaExec, dependsOn: classes) {
     args = ['io.rob.Main']
     classpath sourceSets.main.runtimeClasspath
     classpath configurations.runtime
+}
+
+/*
+ * Run scala tests.  These are not automatically picked up by gradle so we need to run them like this.
+ */
+task spec(dependsOn: ['testClasses'], type: JavaExec) {
+    main = 'org.scalatest.tools.Runner'
+    args = ['-R', 'build/classes/test', '-o']
+    classpath = sourceSets.test.runtimeClasspath
 }

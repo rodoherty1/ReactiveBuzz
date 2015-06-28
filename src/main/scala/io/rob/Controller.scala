@@ -7,9 +7,12 @@ import io.rob.GitClient.{UnableToGetReactiveProjects, ErrorRetrievingReactivePro
 object Controller {
   case object GetReactiveProjects
 }
+
 class Controller extends Actor with ActorLogging {
 
-  val gitClient = context.actorOf(Props[GitClient], "GitClient")
+  def createGitClient() = context.actorOf(Props[GitClient], "GitClient")
+
+  val gitClient = createGitClient()
 
   override def receive: Receive = {
     case Receptionist.FetchReactiveBuzz => gitClient ! GetReactiveProjects
