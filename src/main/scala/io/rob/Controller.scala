@@ -1,12 +1,9 @@
 package io.rob
 
 import akka.actor.{ActorLogging, Props, Actor}
-import io.rob.Controller.GetReactiveProjects
+import io.rob.CommonDefs.{FetchReactiveBuzz, GetReactiveProjects}
 import io.rob.GitClient.{UnableToGetReactiveProjects, ErrorRetrievingReactiveProjects, ReactiveProjects}
 
-object Controller {
-  case object GetReactiveProjects
-}
 
 class Controller extends Actor with ActorLogging {
 
@@ -15,9 +12,11 @@ class Controller extends Actor with ActorLogging {
   val gitClient = createGitClient()
 
   override def receive: Receive = {
-    case Receptionist.FetchReactiveBuzz => gitClient ! GetReactiveProjects
+    case FetchReactiveBuzz => gitClient ! GetReactiveProjects
 
-    case ReactiveProjects(names) => log.info(names.mkString("{", ", ", "}"))
+    case projects@ReactiveProjects(names) =>
+      log.info(names.mkString("{", ", ", "}"))
+      context.parent ! projects
     case UnableToGetReactiveProjects(msg) => log.warning(msg)
     case ErrorRetrievingReactiveProjects(th) => log.error(th, th.getMessage)
   }

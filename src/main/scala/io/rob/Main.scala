@@ -1,31 +1,19 @@
 package io.rob
 
-import akka.actor.{ActorLogging, Props, Actor, ActorSystem}
+import akka.actor.{ActorSystem, Props}
+import akka.stream.ActorMaterializer
+import com.typesafe.scalalogging.LazyLogging
+import io.rob.CommonDefs.FetchReactiveBuzz
 
-object Main {
-  case object FetchReactiveBuzz
-}
+object Main extends App with LazyLogging {
 
-class Main extends Actor with ActorLogging {
+  implicit val system = ActorSystem()
+  implicit val materializer = ActorMaterializer()
 
-//  import system.dispatcher
-  import Main._
+  val reporter = system.actorOf(Props[Reporter], "Reporter")
 
-  implicit val system = ActorSystem("MyActorSystem")
+  logger.info("Checking out the buzz about #Reactive applications")
 
-  val receptionist = context.actorOf(Props[Receptionist], "Receptionist")
-
-  self ! Main.FetchReactiveBuzz
-
-  override def receive: Receive = {
-    case Main.FetchReactiveBuzz =>
-      log.info("Checking out the buzz about #Reactive applications")
-      receptionist ! Main.FetchReactiveBuzz
-
-    case Receptionist.DummyResult =>
-      log.info("DummyResult received.")
-      context.system.shutdown()
-  }
-
+  reporter ! FetchReactiveBuzz
 }
 

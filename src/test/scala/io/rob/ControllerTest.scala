@@ -2,17 +2,14 @@ package io.rob
 
 import akka.actor.{ActorRef, Props, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
+import io.rob.CommonDefs.{GetReactiveProjects, FetchReactiveBuzz}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 
-/**
- * Created on 28/06/15.
- */
 class ControllerTest extends TestKit(ActorSystem("ControllerSpec")) with WordSpecLike with BeforeAndAfterAll with ImplicitSender {
 
   override def afterAll(): Unit = {
     system.shutdown()
   }
-
 
   def fakeController(testActor: ActorRef) = {
     Props(new Controller() {
@@ -24,8 +21,8 @@ class ControllerTest extends TestKit(ActorSystem("ControllerSpec")) with WordSpe
     "Request Reactive projects from the GitClient" in {
       val gitClient = system.actorOf(Props[GitClient])
       val controller = system.actorOf(fakeController(testActor))
-      controller ! Receptionist.FetchReactiveBuzz
-      expectMsg(Controller.GetReactiveProjects)
+      controller ! FetchReactiveBuzz
+      expectMsg(GetReactiveProjects)
     }
   }
 
