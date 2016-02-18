@@ -30,7 +30,7 @@ val json4s = Seq(
   "de.heikoseeberger"   %% "akka-http-json4s" % "1.4.2"
 )
 
-val AkkaVersion       = "2.4.1"
+val AkkaVersion       = "2.4.2"
 val AkkaHttpVersion   = "2.0.3"
 val akka = Seq(
   "com.typesafe.akka"   %% "akka-slf4j"      % AkkaVersion,
