@@ -42,27 +42,27 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
   override def receive: Receive = {
     case GetReactiveProjects =>
       log.info("Fetching info from Github")
-      context.become(waitForResults())
+      context.become(waitForResults(sender()))
       fetchReactiveProjects()
     case _ => log.warning("Unexpected message received!")
   }
 
-  def waitForResults(): Actor.Receive = {
+  def waitForResults(sender: ActorRef): Actor.Receive = {
     case GetReactiveProjects => log.info("Ignoring subsequent requests for #Reactive projects")
 
     case results@ReactiveProjects(projects) =>
       log.info("Received #Reactive projects from GitHub and their respective tweets")
-      context.parent ! results
+      sender ! results
       context.unbecome()
 
     case noResults@UnableToGetReactiveProjects(msg) =>
       log.warning(noResults.msg)
-      context.parent ! noResults
+      sender ! noResults
       context.unbecome()
 
     case error@ErrorRetrievingReactiveProjects(th) =>
       log.error(th.getMessage, th)
-      context.parent ! error
+      sender ! error
       context.unbecome()
 
     case x@_ => log.warning("Unexpected message: {}", x)
