@@ -2,7 +2,6 @@ package io.rob
 
 import akka.actor.{ActorRef, Props, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import io.rob.CommonDefs.{GetReactiveProjects, FetchReactiveBuzz}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 
 class ControllerTest extends TestKit(ActorSystem("ControllerSpec")) with WordSpecLike with BeforeAndAfterAll with ImplicitSender {

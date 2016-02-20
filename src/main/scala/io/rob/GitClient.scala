@@ -1,5 +1,7 @@
 package io.rob
 
+import java.util.UUID
+
 import akka.actor._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpResponse, HttpRequest}
@@ -13,7 +15,7 @@ object GitClient {
   case class GitProject(name: String)
   case class GitResult(total_count: Int, incomplete_results: Boolean, items: List[GitProject])
 
-  case class ReactiveProjects(names: List[String])
+  case class ReactiveProjects(uuid: UUID, names: List[String])
   case class UnableToGetReactiveProjects(msg: String)
   case class ErrorRetrievingReactiveProjects(th: Throwable)
 }
@@ -23,7 +25,6 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
   import GitClient._
   import org.json4s._
   import org.json4s.jackson.JsonMethods._
-  import io.rob.CommonDefs.GetReactiveProjects
 
   implicit val formats = DefaultFormats
 
@@ -40,17 +41,17 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
   val http = Http(context.system)
 
   override def receive: Receive = {
-    case GetReactiveProjects =>
+    case GetReactiveProjects(id) =>
       log.info("Fetching info from Github")
       context.become(waitForResults(sender()))
-      fetchReactiveProjects()
+      fetchReactiveProjects(id)
     case _ => log.warning("Unexpected message received!")
   }
 
   def waitForResults(sender: ActorRef): Actor.Receive = {
     case GetReactiveProjects => log.info("Ignoring subsequent requests for #Reactive projects")
 
-    case results@ReactiveProjects(projects) =>
+    case results@ReactiveProjects(_, _) =>
       log.info("Received #Reactive projects from GitHub and their respective tweets")
       sender ! results
       context.unbecome()
@@ -69,7 +70,7 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
   }
 
 
-  def fetchReactiveProjects(): Unit = {
+  def fetchReactiveProjects(id: UUID): Unit = {
     log.info("Getting #Reactive projects from GitHub and their respective tweets")
 
     val responseFuture = fetchReactiveProjectsFromGit()
@@ -78,7 +79,7 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
       case Success(GitResult(count, _, items)) =>
         val projects: List[String] = items.take(10).map(_.name)
         log.info("Received #Reactive projects from GitHub: {}", projects)
-        self ! ReactiveProjects(projects)
+        self ! ReactiveProjects(id, projects)
 
       case Success(somethingUnexpected) =>
         self ! UnableToGetReactiveProjects(s"The Git API call was successful but returned something unexpected: '$somethingUnexpected'.")

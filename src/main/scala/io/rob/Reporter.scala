@@ -1,16 +1,43 @@
 package io.rob
 
+import java.util.UUID
+
 import akka.actor.{ActorRef, ActorLogging, Props, Actor}
-import io.rob.CommonDefs.{GetReactiveProjects, FetchReactiveBuzz}
 import io.rob.GitClient.{ErrorRetrievingReactiveProjects, UnableToGetReactiveProjects, ReactiveProjects}
 
 class Reporter(gitClient: ActorRef, twitterClient: ActorRef) extends Actor with ActorLogging {
 
-  override def receive: Receive = {
-    case FetchReactiveBuzz => gitClient ! GetReactiveProjects
+  type Report = (Int, List[String])
 
-    case projects@ReactiveProjects(names) =>
-      names.foreach(twitterClient ! GetTweets(_))
+  def uuid = java.util.UUID.randomUUID
+
+  var pendingReports: Map[UUID, Report] = Map.empty
+
+  override def receive: Receive = {
+    case FetchReactiveBuzz => gitClient ! GetReactiveProjects(uuid)
+
+    case ReactiveProjects(id, names) =>
+      pendingReports = pendingReports.updated(id, (names.size, List.empty))
+      names.foreach(twitterClient ! GetTweets(id, _))
+
+    case TwitterResult(id, reactiveProject, tweet) =>
+      if (pendingReports.contains(id)) {
+        val (count, results) = pendingReports(id)
+        val updatedResults = s"$reactiveProject -> [$tweet]" :: results
+
+        pendingReports = pendingReports updated (id, (count, updatedResults))
+        if (count == updatedResults.size) {
+          self ! PrintReport(id)
+        }
+      }
+
+    case PrintReport(id) =>
+      if (pendingReports.contains(id)) {
+        pendingReports(id) match {
+          case (_, results) => println(results.mkString("\n"))
+        }
+        pendingReports = pendingReports - id
+      }
 
     case UnableToGetReactiveProjects(msg) => log.warning(msg)
 

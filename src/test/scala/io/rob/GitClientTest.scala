@@ -1,14 +1,15 @@
 package io.rob
 
-import akka.actor.{Props, ActorRef, ActorSystem}
+import akka.actor.{Props, ActorSystem}
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import io.rob.CommonDefs.GetReactiveProjects
 import io.rob.GitClient.{ReactiveProjects, GitProject, GitResult}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike, FunSuite}
 
 import scala.concurrent.{Promise, Future}
 
 class GitClientTest extends TestKit(ActorSystem("GitClientSpec")) with WordSpecLike with BeforeAndAfterAll with ImplicitSender {
+
+  def uuid = java.util.UUID.randomUUID
 
   override def afterAll(): Unit = {
     system.shutdown()
@@ -32,9 +33,10 @@ class GitClientTest extends TestKit(ActorSystem("GitClientSpec")) with WordSpecL
 
       val gitClient = TestActorRef[GitClient]
 
-      gitClient ! GetReactiveProjects
+      val id = uuid
+      gitClient ! GetReactiveProjects(id)
 
-      expectMsg(ReactiveProjects(List(reactiveProjectName)))
+      expectMsg(ReactiveProjects(id, List(reactiveProjectName)))
     }
   }
 }

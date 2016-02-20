@@ -10,7 +10,6 @@ import com.typesafe.config.ConfigFactory
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.{DefaultFormats, jackson}
 
-import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object TwitterClient {
@@ -19,11 +18,9 @@ object TwitterClient {
 
   val config = ConfigFactory.load()
   val key = config.getString("consumer-key")
-
   val secret = config.getString("consumer-secret")
 
   val authorization = Authorization(BasicHttpCredentials(key, secret))
-
 
   val authRequest = HttpRequest(
     uri = Uri("https://api.twitter.com/oauth2/token"),
@@ -51,46 +48,52 @@ class TwitterClient extends Actor with ActorLogging {
 
   override def receive: Receive = notAuthenticated()
 
-  def notAuthenticated(): Receive = {
-    case getTweets@GetTweets(hashtag) =>
-      tweets = getTweets :: tweets
-      self ! Authenticate
 
+  def notAuthenticated(): Receive = {
+    case getTweets@GetTweets(id, _) =>
+      tweets = getTweets :: tweets
+      context.become(authenticating(sender()))
+      self ! Authenticate
+  }
+
+  def authenticating(reporter: ActorRef): Receive = {
     case Authenticate =>
-      val reporter = sender()
       Http().singleRequest(authRequest) onComplete {
         case Success(response) => Unmarshal(response.entity).to[OAuthToken] onComplete {
           case Success(token) =>
             context.become(authenticated(reporter, Authorization(OAuth2BearerToken(token.access_token))))
-            self ! Authenticated
+            tweets.foreach(self ! _)
+            tweets = List.empty
           case _ => reporter ! FailedToAuthenticate
         }
 
         case _  => reporter ! FailedToAuthenticate
       }
+
+    case getTweets@GetTweets(id, _) => tweets = getTweets :: tweets
   }
 
-
   def authenticated(reporter: ActorRef, token: Authorization): Receive = {
+    case GetTweets(id, queryParam) =>
+      val request = buildGetTweetsRequest(token, queryParam)
 
-    case Authenticated => tweets match {
-      case Nil => ()
-      case h :: t =>
-        tweets = t
-        self ! h
-    }
-
-    case GetTweets(hashtag) =>
-      val params = Map("q" -> hashtag)
-      Http().singleRequest(HttpRequest(
-        uri = Uri("https://api.twitter.com/1.1/search/tweets.json").withQuery(Uri.Query(params)),
-        method = HttpMethods.GET,
-        headers = List(token))
-      ).onComplete {
+      Http().singleRequest(request).onComplete {
         case Success(HttpResponse(status, _, entity, _)) => Unmarshal(entity).to[Tweets].onSuccess {
-          case Tweets(statuses) => statuses.foreach(tweet => log.info(tweet.text))
+          case Tweets(statuses) => reporter ! TwitterResult(id, queryParam, statuses.headOption)
         }
-        case Failure(ex) => log.error(ex.getMessage, ex)
+        case Failure(ex) =>
+          context.become(notAuthenticated())
+          log.error(ex.getMessage, ex)
       }
+  }
+
+  def buildGetTweetsRequest(token: Authorization, queryParam: String): HttpRequest = {
+    val params = Map("q" -> queryParam)
+
+    HttpRequest(
+      uri = Uri("https://api.twitter.com/1.1/search/tweets.json").withQuery(Uri.Query(params)),
+      method = HttpMethods.GET,
+      headers = List(token)
+    )
   }
 }
