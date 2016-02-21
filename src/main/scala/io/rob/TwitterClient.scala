@@ -1,6 +1,6 @@
 package io.rob
 
-import akka.actor.{ActorRef, ActorSystem, ActorLogging, Actor}
+import akka.actor.{ActorRef, ActorLogging, Actor}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{OAuth2BearerToken, BasicHttpCredentials, Authorization}
@@ -37,7 +37,7 @@ class TwitterClient extends Actor with ActorLogging {
   implicit val serialization = jackson.Serialization
   implicit val formats = DefaultFormats
 
-  implicit val system = ActorSystem()
+  implicit val system = context.system
   implicit val materializer = ActorMaterializer()
 
   implicit val executionContext = context.dispatcher
@@ -46,6 +46,10 @@ class TwitterClient extends Actor with ActorLogging {
 
   override def receive: Receive = notAuthenticated()
 
+  /*
+   * The twitter client is not authenticated at first.
+   * API requests are bufferred in <code>tweets</code> until this actor has authenticated with Twitter's API.
+   */
   def notAuthenticated(): Receive = {
     case getTweets@GetTweets(id, _) =>
       tweets = getTweets :: tweets
@@ -59,7 +63,7 @@ class TwitterClient extends Actor with ActorLogging {
         case Success(response) => Unmarshal(response.entity).to[OAuthToken] onComplete {
           case Success(token) =>
             context.become(authenticated(reporter, Authorization(OAuth2BearerToken(token.access_token))))
-            tweets.foreach(self ! _)
+            tweets.foreach(self ! _)  // Once authenticated, send all buffered GetTweets messages to self.
             tweets = List.empty
           case Failure(th) => reporter ! Error(th.getMessage)
         }
@@ -74,15 +78,15 @@ class TwitterClient extends Actor with ActorLogging {
     case getTweets@GetTweets(id, queryParam) =>
       val request = buildGetTweetsRequest(token, queryParam)
 
-      log.info(s"""Searching for first tweet that mentions the term "$queryParam" """)
+      log.info(s"""Searching for tweets that mentions the term "$queryParam" """)
 
       Http().singleRequest(request).onComplete {
         case Success(HttpResponse(status, _, entity, _)) => Unmarshal(entity).to[Tweets].onSuccess {
-          case Tweets(statuses) => reporter ! TwitterResult(id, queryParam, statuses.headOption)
+          case Tweets(statuses) => reporter ! TwitterResult(id, queryParam, statuses.take(5))
         }
         case Failure(ex) =>
           log.warning(ex.getMessage)
-          context.become(notAuthenticated())
+          context.become(notAuthenticated())  // If an error is encountered, re-authenticate and try the request again
           self ! getTweets
       }
   }
@@ -95,5 +99,9 @@ class TwitterClient extends Actor with ActorLogging {
       method = HttpMethods.GET,
       headers = List(token)
     )
+  }
+
+  override def postStop() = {
+    materializer.shutdown()
   }
 }

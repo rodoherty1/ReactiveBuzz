@@ -30,6 +30,11 @@ val json4s = Seq(
   "de.heikoseeberger"   %% "akka-http-json4s" % "1.4.2"
 )
 
+val jackson = Seq(
+  "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.5",
+  "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % "2.6.3"
+)
+
 val AkkaVersion       = "2.4.2"
 val AkkaHttpVersion   = "2.0.3"
 val akka = Seq(
@@ -47,7 +52,7 @@ val logging = Seq(
   "ch.qos.logback"      %  "logback-classic" % "1.1.2"
 )
 
-libraryDependencies ++= akka ++ json4s ++ akkaTestKit ++ scalacheck ++ scalatest ++ logging
+libraryDependencies ++= akka ++ json4s ++ jackson ++ akkaTestKit ++ scalacheck ++ scalatest ++ logging
 
 // Assembly settings
 mainClass in Global := Some("io.rob.Main")

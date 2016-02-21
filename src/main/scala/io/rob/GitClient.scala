@@ -4,8 +4,8 @@ import java.util.UUID
 
 import akka.actor._
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpResponse, HttpRequest}
-import akka.stream.scaladsl.ImplicitMaterializer
+import akka.http.scaladsl.model.HttpRequest
+import akka.stream.ActorMaterializer
 import akka.util.ByteString
 
 import scala.concurrent.Future
@@ -14,13 +14,10 @@ import scala.util.{Failure, Success}
 object GitClient {
   case class GitProject(name: String)
   case class GitResult(total_count: Int, incomplete_results: Boolean, items: List[GitProject])
-
   case class ReactiveProjects(uuid: UUID, names: List[String])
-//  case class UnableToGetReactiveProjects(msg: String)
-//  case class ErrorRetrievingReactiveProjects(th: Throwable)
 }
 
-class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
+class GitClient extends Actor with ActorLogging {
 
   import GitClient._
   import org.json4s._
@@ -30,14 +27,12 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
 
   implicit val dispatcher = context.system.dispatcher
   implicit val system = context.system
-
-  val http = Http(context.system)
+  implicit val materializer = ActorMaterializer()
 
   override def receive: Receive = {
     case GetReactiveProjects(id) =>
       context.become(waitForResults(sender()))
       fetchReactiveProjects(id)
-    case _ => log.warning("Unexpected message received!")
   }
 
   def waitForResults(reporter: ActorRef): Actor.Receive = {
@@ -54,13 +49,10 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
 
 
   def fetchReactiveProjects(id: UUID): Unit = {
-    log.info("Getting #Reactive projects from GitHub")
 
-    val responseFuture = fetchReactiveProjectsFromGit()
-
-    responseFuture onComplete {
+    fetchReactiveProjectsFromGit() onComplete {
       case Success(GitResult(count, _, items)) =>
-        val projects: List[String] = items.take(10).map(_.name)
+        val projects = items.take(10).map(_.name)
         log.info("Received #Reactive projects from GitHub: {}", projects)
         self ! ReactiveProjects(id, projects)
 
@@ -79,5 +71,9 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
       response <- future
       byteString <- response.entity.dataBytes.runFold(ByteString(""))(_ ++ _)
     } yield parse(byteString.decodeString("UTF-8")).extract[GitResult]
+  }
+
+  override def postStop() = {
+    materializer.shutdown()
   }
 }

@@ -12,7 +12,7 @@ class ControllerTest extends TestKit(ActorSystem("ControllerSpec")) with WordSpe
 
   def fakeController(testActor: ActorRef) = {
     Props(new Controller() {
-      override def createGitClient() = testActor
+      //override def createGitClient() = testActor
     })
   }
 

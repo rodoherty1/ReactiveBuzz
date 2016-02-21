@@ -1,29 +1,26 @@
 package io.rob
 
-import akka.actor.{ActorLogging, Props, Actor}
-import io.rob.GitClient.{UnableToGetReactiveProjects, ErrorRetrievingReactiveProjects, ReactiveProjects}
+import akka.actor._
 
+object Controller {
+  case object Start
+}
 
+/**
+  * This actor starts the process of requesting projects and tweets
+  */
 class Controller extends Actor with ActorLogging {
 
-  def createGitClient() = context.actorOf(Props[GitClient], "GitClient")
+  import Controller._
 
-  val gitClient = createGitClient()
+  val gitClient = context.actorOf(Props[GitClient], "GitClient")
+  val twitterClient = context.actorOf(Props[TwitterClient], "TwitterClient")
+  val reporter = context.actorOf(Props(classOf[Reporter], gitClient, twitterClient), "Reporter")
+
+  self ! Start
 
   override def receive: Receive = {
-    case _ => ()
-//    case FetchReactiveBuzz => gitClient ! GetReactiveProjects
-//
-//    case projects@ReactiveProjects(names) =>
-//      log.info(names.mkString("{", ", ", "}"))
-//      context.parent ! projects
-//    case UnableToGetReactiveProjects(msg) => log.warning(msg)
-//    case ErrorRetrievingReactiveProjects(th) => log.error(th, th.getMessage)
+    case Start => reporter ! FetchReactiveBuzz
+    case Finished => context.system.terminate()
   }
-
-  def shutdown(): Unit = {
-    // IO(Http).ask(Http.CloseAll)(1.second).await
-    context.stop(self)
-  }
-
 }
