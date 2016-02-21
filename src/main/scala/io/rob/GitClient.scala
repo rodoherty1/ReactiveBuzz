@@ -16,8 +16,8 @@ object GitClient {
   case class GitResult(total_count: Int, incomplete_results: Boolean, items: List[GitProject])
 
   case class ReactiveProjects(uuid: UUID, names: List[String])
-  case class UnableToGetReactiveProjects(msg: String)
-  case class ErrorRetrievingReactiveProjects(th: Throwable)
+//  case class UnableToGetReactiveProjects(msg: String)
+//  case class ErrorRetrievingReactiveProjects(th: Throwable)
 }
 
 class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
@@ -28,50 +28,33 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
 
   implicit val formats = DefaultFormats
 
+  implicit val dispatcher = context.system.dispatcher
   implicit val system = context.system
-
-  import system.dispatcher
-
-  import akka.pattern.pipe
-  import context.dispatcher
-
-  implicit val executionContext = system.dispatchers.defaultGlobalDispatcher
-
 
   val http = Http(context.system)
 
   override def receive: Receive = {
     case GetReactiveProjects(id) =>
-      log.info("Fetching info from Github")
       context.become(waitForResults(sender()))
       fetchReactiveProjects(id)
     case _ => log.warning("Unexpected message received!")
   }
 
-  def waitForResults(sender: ActorRef): Actor.Receive = {
+  def waitForResults(reporter: ActorRef): Actor.Receive = {
     case GetReactiveProjects => log.info("Ignoring subsequent requests for #Reactive projects")
 
     case results@ReactiveProjects(_, _) =>
-      log.info("Received #Reactive projects from GitHub and their respective tweets")
-      sender ! results
+      reporter ! results
       context.unbecome()
 
-    case noResults@UnableToGetReactiveProjects(msg) =>
-      log.warning(noResults.msg)
-      sender ! noResults
+    case err@Error(msg) =>
+      reporter ! err
       context.unbecome()
-
-    case error@ErrorRetrievingReactiveProjects(th) =>
-      log.error(th.getMessage, th)
-      sender ! error
-      context.unbecome()
-
-    case x@_ => log.warning("Unexpected message: {}", x)
   }
 
 
   def fetchReactiveProjects(id: UUID): Unit = {
-    log.info("Getting #Reactive projects from GitHub and their respective tweets")
+    log.info("Getting #Reactive projects from GitHub")
 
     val responseFuture = fetchReactiveProjectsFromGit()
 
@@ -82,32 +65,19 @@ class GitClient extends Actor with ImplicitMaterializer with ActorLogging {
         self ! ReactiveProjects(id, projects)
 
       case Success(somethingUnexpected) =>
-        self ! UnableToGetReactiveProjects(s"The Git API call was successful but returned something unexpected: '$somethingUnexpected'.")
+        self ! Error(s"The Git API call was successful but returned something unexpected: '$somethingUnexpected'.")
 
       case Failure(error) =>
-        self ! ErrorRetrievingReactiveProjects(error)
+        self ! Error(error.getMessage)
     }
   }
 
-
-  def get(responseFuture: Future[HttpResponse]) = {
-    log.info("Got response {}", responseFuture)
-    responseFuture
-  }
-
   def fetchReactiveProjectsFromGit(): Future[GitResult] = {
-    val responseFuture =
-      Http().singleRequest(HttpRequest(uri = "https://api.github.com/search/repositories?q=reactive"))
+    val future = Http().singleRequest(HttpRequest(uri = "https://api.github.com/search/repositories?q=reactive"))
 
     for {
-      response <- get(responseFuture)
+      response <- future
       byteString <- response.entity.dataBytes.runFold(ByteString(""))(_ ++ _)
     } yield parse(byteString.decodeString("UTF-8")).extract[GitResult]
-  }
-
-
-  def shutdown(): Unit = {
-//    IO(Http).ask(Http.CloseAll)(1.second).await
-    context.stop(self)
   }
 }

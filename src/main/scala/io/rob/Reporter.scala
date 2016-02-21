@@ -2,8 +2,8 @@ package io.rob
 
 import java.util.UUID
 
-import akka.actor.{ActorRef, ActorLogging, Props, Actor}
-import io.rob.GitClient.{ErrorRetrievingReactiveProjects, UnableToGetReactiveProjects, ReactiveProjects}
+import akka.actor._
+import io.rob.GitClient.ReactiveProjects
 
 class Reporter(gitClient: ActorRef, twitterClient: ActorRef) extends Actor with ActorLogging {
 
@@ -23,7 +23,7 @@ class Reporter(gitClient: ActorRef, twitterClient: ActorRef) extends Actor with 
     case TwitterResult(id, reactiveProject, tweet) =>
       if (pendingReports.contains(id)) {
         val (count, results) = pendingReports(id)
-        val updatedResults = s"$reactiveProject -> [$tweet]" :: results
+        val updatedResults = s"$reactiveProject -> ${asString(tweet)}" :: results
 
         pendingReports = pendingReports updated (id, (count, updatedResults))
         if (count == updatedResults.size) {
@@ -32,6 +32,7 @@ class Reporter(gitClient: ActorRef, twitterClient: ActorRef) extends Actor with 
       }
 
     case PrintReport(id) =>
+      log.info ("""All result received.  Here's your report on github projects and tweets relating to the term "Reactive"!""")
       if (pendingReports.contains(id)) {
         pendingReports(id) match {
           case (_, results) => println(results.mkString("\n"))
@@ -39,17 +40,18 @@ class Reporter(gitClient: ActorRef, twitterClient: ActorRef) extends Actor with 
         pendingReports = pendingReports - id
       }
 
-    case UnableToGetReactiveProjects(msg) => log.warning(msg)
+    case Error(msg) =>
+      log.error(msg)
+      self ! Finished
 
-    case ErrorRetrievingReactiveProjects(th) => log.error(th, th.getMessage)
-
-    case FailedToAuthenticate => log.warning(FailedToAuthenticate.toString)
+    case Finished =>
+      gitClient ! PoisonPill
+      twitterClient ! PoisonPill
+      self ! PoisonPill
   }
 
-  def shutdown(): Unit = {
-    // IO(Http).ask(Http.CloseAll)(1.second).await
-    context.stop(self)
+  def asString(maybeTweet: Option[Tweet]): String = maybeTweet match {
+    case None => "[ No tweets found ]"
+    case Some(tweet) => s"""{${tweet.text}}"""
   }
-
-
 }

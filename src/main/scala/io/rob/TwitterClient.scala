@@ -14,8 +14,6 @@ import scala.util.{Failure, Success}
 
 object TwitterClient {
 
-  case object Authenticated
-
   val config = ConfigFactory.load()
   val key = config.getString("consumer-key")
   val secret = config.getString("consumer-secret")
@@ -48,7 +46,6 @@ class TwitterClient extends Actor with ActorLogging {
 
   override def receive: Receive = notAuthenticated()
 
-
   def notAuthenticated(): Receive = {
     case getTweets@GetTweets(id, _) =>
       tweets = getTweets :: tweets
@@ -64,26 +61,29 @@ class TwitterClient extends Actor with ActorLogging {
             context.become(authenticated(reporter, Authorization(OAuth2BearerToken(token.access_token))))
             tweets.foreach(self ! _)
             tweets = List.empty
-          case _ => reporter ! FailedToAuthenticate
+          case Failure(th) => reporter ! Error(th.getMessage)
         }
 
-        case _  => reporter ! FailedToAuthenticate
+        case Failure(th)  => reporter ! Error(th.getMessage)
       }
 
     case getTweets@GetTweets(id, _) => tweets = getTweets :: tweets
   }
 
   def authenticated(reporter: ActorRef, token: Authorization): Receive = {
-    case GetTweets(id, queryParam) =>
+    case getTweets@GetTweets(id, queryParam) =>
       val request = buildGetTweetsRequest(token, queryParam)
+
+      log.info(s"""Searching for first tweet that mentions the term "$queryParam" """)
 
       Http().singleRequest(request).onComplete {
         case Success(HttpResponse(status, _, entity, _)) => Unmarshal(entity).to[Tweets].onSuccess {
           case Tweets(statuses) => reporter ! TwitterResult(id, queryParam, statuses.headOption)
         }
         case Failure(ex) =>
+          log.warning(ex.getMessage)
           context.become(notAuthenticated())
-          log.error(ex.getMessage, ex)
+          self ! getTweets
       }
   }
 
