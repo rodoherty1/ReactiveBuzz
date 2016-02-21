@@ -65,10 +65,12 @@ class TwitterClient extends Actor with ActorLogging {
             context.become(authenticated(reporter, Authorization(OAuth2BearerToken(token.access_token))))
             tweets.foreach(self ! _)  // Once authenticated, send all buffered GetTweets messages to self.
             tweets = List.empty
-          case Failure(th) => reporter ! Error(th.getMessage)
+          case Failure(th) =>
+            log.error("Failed to authenticate with Twitter.  Is your consumer-key and consumer-secret correctly set in the twitter config file?")
+            reporter ! Error(th.getMessage)
         }
 
-        case Failure(th)  => reporter ! Error(th.getMessage)
+        case Failure(th) => reporter ! Error(th.getMessage)
       }
 
     case getTweets@GetTweets(id, _) => tweets = getTweets :: tweets
